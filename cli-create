@@ -65,7 +65,7 @@ main() {
   fi
 
   # Use the shFlags project to parse the command line arguments
-  . "$CLICREATE_DIR/createcli-shFlags"
+  . "$CLICREATE_DIR/clicreate-shFlags"
   FLAGS_PARENT="create cli"
 
   # Load common functionality
