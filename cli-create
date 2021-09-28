@@ -1,0 +1,138 @@
+#!/bin/sh
+
+if [ "$DEBUG" = "yes" ]; then
+  set -x
+fi
+
+case $(uname -s) in
+Linux)
+  export CLICREATE_DIR=$(dirname "$(readlink -e "$0")")
+  ;;
+FreeBSD | OpenBSD | NetBSD)
+  export FLAGS_GETOPT_CMD='/usr/local/bin/getopt'
+  export CLICREATE_DIR=$(dirname "$(realpath "$0")")
+  ;;
+Darwin)
+  PRG="$0"
+  while [ -h "$PRG" ]; do
+    link=$(readlink "$PRG")
+    if expr "$link" : '/.*' >/dev/null; then
+      PRG="$link"
+    else
+      PRG="$(dirname "$PRG")/$link"
+    fi
+  done
+  export CLICREATE_DIR=$(dirname "$PRG")
+  ;;
+*MINGW*)
+  export CLICREATE_DIR=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
+  pwd() {
+    builtin pwd -W
+  }
+  ;;
+*)
+  # The sed expression here replaces all backslashes by forward slashes.
+  # This helps our Windows users, while not bothering our Unix users.)
+  export CLICREATE_DIR=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
+  ;;
+esac
+
+# Extra environment settings
+if [ -f ~/.clicreate_export ]; then
+  if grep -E 'CLICREATE_FLAG_(SHOWCOMMANDS|CREATE|TEST)' ~/.clicreate_export >/dev/null; then
+    echo "Using environment variables for \"showcommands\", \"create\", \"test\" in ~/.clicreate_export has deprecated, use git config instead."
+    echo ""
+    exit 1
+  else
+    . ~/.clicreate_export
+  fi
+fi
+
+usage() {
+  echo "usage: create cli <subcommand>"
+  echo
+  echo "Available subcommands are:"
+  echo "   create      Echo command create."
+  echo "   test   Echo command test."
+  echo
+  echo "Try 'create cli <subcommand> help' for details."
+}
+
+main() {
+  if [ $# -lt 1 ]; then
+    usage
+    exit 1
+  fi
+
+  # Use the shFlags project to parse the command line arguments
+  . "$CLICREATE_DIR/createcli-shFlags"
+  FLAGS_PARENT="create cli"
+
+  # Load common functionality
+  . "$CLICREATE_DIR/clicreate-common"
+
+  # allow user to request git action logging
+  DEFINE_boolean 'showcommands' false 'Show actions taken (git commands)'
+  # but if the user prefers that the logging is always on,
+  # use the environmental variables.
+
+  gitflow_override_flag_boolean 'showcommands' 'showcommands'
+  # Sanity checks
+  SUBCOMMAND="$1"
+  shift
+
+  if [ "${SUBCOMMAND}" = "create" ] || [ "${SUBCOMMAND}" = "teste" ] ; then
+    echo "subcommand is ${SUBCOMMAND}"
+    SUBACTION="${SUBCOMMAND}"
+    SUBCOMMAND="create"
+  fi
+
+  if [ ! -e "$GITFLOW_DIR/cli-create-$SUBCOMMAND" ]; then
+    usage
+    exit 1
+  fi
+
+  # Run command
+	. "$GITFLOW_DIR/cli-create-$SUBCOMMAND"
+	FLAGS_PARENT="create cli $SUBCOMMAND"
+
+  if [ -z "${SUBACTION}" ]; then
+		# If the first argument is a flag, it starts with '-', we interpret this
+		# argument as a flag for the default command.
+		if startswith "$1" "-"; then
+			SUBACTION="default"
+		elif [ -z "$1" ]; then
+			SUBACTION="default"
+		else
+			SUBACTION="$1"
+			shift
+			# Do not allow direct calls to subactions with an underscore.
+			if $(contains "$SUBACTION" "_"); then
+				warn "Unknown subcommand: '$SUBACTION'"
+				usage
+				exit 1
+			fi
+			# Replace the dash with an underscore as bash doesn't allow a dash
+			# in the function name.
+			SUBACTION=$(echo "$SUBACTION" |tr '-' '_')
+		fi
+	fi
+
+  if ! type "cmd_$SUBACTION" >/dev/null 2>&1; then
+		warn "Unknown subcommand: '$SUBACTION'"
+		usage
+		exit 1
+	fi
+
+  # Run the specified action
+	if [ $SUBACTION != "help" ] && [ $SUBCOMMAND != "init" ]; then
+		initialize
+	fi
+	if [ $SUBACTION != 'default' ]; then
+		FLAGS_PARENT="create cli $SUBCOMMAND $SUBACTION"
+	fi
+
+	cmd_$SUBACTION "$@" "_short_branch_name"
+}
+
+main "$@"
