@@ -76,7 +76,6 @@ main() {
   # but if the user prefers that the logging is always on,
   # use the environmental variables.
 
-  gitflow_override_flag_boolean 'showcommands' 'showcommands'
   # Sanity checks
   SUBCOMMAND="$1"
   shift
