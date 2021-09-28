@@ -1,0 +1,30 @@
+# $Id$
+# vim:et:ft=sh:sts=2:sw=2
+
+initialize() {
+	require_create_initialize
+}
+
+usage() {
+	OPTIONS_SPEC="\
+create cli create [list]
+create cli create start
+For more specific help type the command followed by --help
+--
+"
+	flags_help
+}
+
+cmd_default() {
+	cmd_list "$@"
+}
+
+cmd_help() {
+	usage
+	exit 0
+}
+
+cmd_start(){
+  echo "Start create"
+  exit 0
+}
